@@ -1,0 +1,328 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Master safety net: deny everything unless explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'preferredTier', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'preferredTier', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 512))
+        && data.preferredTier in ['auto', 'general', 'chats', 'coding', 'flash', 'pro', 'max']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWorkspaceItem(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'folderId', 'messages', 'files', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'title', 'folderId', 'activeFilePath', 'messages', 'files', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.folderId is string && data.folderId.size() >= 1 && data.folderId.size() <= 64
+        && (!('activeFilePath' in data) || (data.activeFilePath is string && data.activeFilePath.size() <= 160))
+        && data.messages is list && data.messages.size() <= 60
+        && (data.messages.size() == 0 || data.messages[0] is map)
+        && data.files is list && data.files.size() <= 30
+        && (data.files.size() == 0 || data.files[0] is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMediaCreation(data) {
+      return data.keys().hasAll(['ownerId', 'kind', 'title', 'prompt', 'model', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'kind', 'title', 'prompt', 'model', 'summaryText', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.kind in ['image', 'music', 'video', 'transcript']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.prompt is string && data.prompt.size() >= 1 && data.prompt.size() <= 2000
+        && data.model is string && data.model.size() >= 1 && data.model.size() <= 80
+        && (!('summaryText' in data) || (data.summaryText is string && data.summaryText.size() <= 8000))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidGameScore(data) {
+      return data.keys().hasAll(['ownerId', 'playerName', 'score', 'wave', 'kills', 'durationSec', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'playerName', 'score', 'wave', 'kills', 'durationSec', 'createdAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.playerName is string && data.playerName.size() >= 1 && data.playerName.size() <= 60
+        && data.score is number && data.score >= 0 && data.score <= 10000000
+        && data.wave is number && data.wave >= 1 && data.wave <= 999
+        && data.kills is number && data.kills >= 0 && data.kills <= 99999
+        && data.durationSec is number && data.durationSec >= 0 && data.durationSec <= 86400
+        && data.createdAt is timestamp;
+    }
+
+    function isCollabOwner(sessionId) {
+      return isSignedIn() && get(/databases/$(database)/documents/collabSessions/$(sessionId)).data.ownerId == request.auth.uid;
+    }
+
+    function isCollabMember(sessionId) {
+      return isSignedIn() && (
+        isCollabOwner(sessionId)
+        || exists(/databases/$(database)/documents/collabSessions/$(sessionId)/members/$(request.auth.uid))
+      );
+    }
+
+    function isValidCollabSession(data) {
+      return data.keys().hasAll(['ownerId', 'ownerName', 'title', 'sourceWorkspaceId', 'shareMode', 'activeFileCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'ownerName', 'title', 'sourceWorkspaceId', 'shareMode', 'activeFileCount', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerName is string && data.ownerName.size() >= 1 && data.ownerName.size() <= 100
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && isValidId(data.sourceWorkspaceId)
+        && data.shareMode in ['open', 'invite']
+        && data.activeFileCount is number && data.activeFileCount >= 0 && data.activeFileCount <= 30
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCollabMember(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'color', 'joinedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'role', 'color', 'joinedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.role in ['owner', 'editor']
+        && data.color is string && data.color.size() >= 4 && data.color.size() <= 32
+        && data.joinedAt is timestamp;
+    }
+
+    function isValidCollabFile(data, sessionId) {
+      return data.keys().hasAll(['sessionId', 'path', 'language', 'content', 'version', 'lastEditorId', 'lastEditorName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['sessionId', 'path', 'language', 'content', 'version', 'lastEditorId', 'lastEditorName', 'createdAt', 'updatedAt'])
+        && isValidId(data.sessionId)
+        && data.sessionId == sessionId
+        && data.path is string && data.path.size() >= 1 && data.path.size() <= 160
+        && data.language is string && data.language.size() >= 1 && data.language.size() <= 24
+        && data.content is string && data.content.size() <= 50000
+        && data.version is number && data.version >= 1 && data.version <= 10000000
+        && isValidId(data.lastEditorId)
+        && data.lastEditorId == request.auth.uid
+        && data.lastEditorName is string && data.lastEditorName.size() >= 1 && data.lastEditorName.size() <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCollabPresence(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'color', 'activeFilePath', 'cursorLine', 'cursorCol', 'selectionStart', 'selectionEnd', 'isTyping', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'color', 'activeFilePath', 'cursorLine', 'cursorCol', 'selectionStart', 'selectionEnd', 'isTyping', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.color is string && data.color.size() >= 4 && data.color.size() <= 32
+        && data.activeFilePath is string && data.activeFilePath.size() <= 160
+        && data.cursorLine is number && data.cursorLine >= 1 && data.cursorLine <= 100000
+        && data.cursorCol is number && data.cursorCol >= 1 && data.cursorCol <= 10000
+        && data.selectionStart is number && data.selectionStart >= 0 && data.selectionStart <= 100000
+        && data.selectionEnd is number && data.selectionEnd >= 0 && data.selectionEnd <= 100000
+        && data.isTyping is bool
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(userId) && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'preferredTier', 'updatedAt']);
+      allow delete: if isValidId(userId) && isOwner(userId);
+
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && docId == 'info' && isOwner(userId);
+        allow list: if false;
+        allow create: if isVerified() && isValidId(userId) && docId == 'info' && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == userId
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isVerified() && isValidId(userId) && docId == 'info' && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
+        allow delete: if isValidId(userId) && docId == 'info' && isOwner(userId);
+      }
+    }
+
+    match /workspaces/{workspaceId} {
+      allow get: if isValidId(workspaceId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(workspaceId)
+        && isValidWorkspaceItem(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(workspaceId)
+        && isValidWorkspaceItem(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'folderId', 'activeFilePath', 'messages', 'files', 'updatedAt']);
+      allow delete: if isValidId(workspaceId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    match /creations/{creationId} {
+      allow get: if isValidId(creationId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(creationId)
+        && isValidMediaCreation(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(creationId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    match /leaderboard/{scoreId} {
+      allow get: if isValidId(scoreId) && isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(scoreId)
+        && isValidGameScore(incoming())
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(scoreId) && isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    match /collabSessions/{sessionId} {
+      allow get: if isValidId(sessionId) && isSignedIn()
+        && (
+          existing().ownerId == request.auth.uid
+          || existing().shareMode == 'open'
+          || exists(/databases/$(database)/documents/collabSessions/$(sessionId)/members/$(request.auth.uid))
+        );
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(sessionId)
+        && isValidCollabSession(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(sessionId)
+        && isValidCollabSession(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'shareMode', 'activeFileCount', 'updatedAt']))
+          || (exists(/databases/$(database)/documents/collabSessions/$(sessionId)/members/$(request.auth.uid))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['activeFileCount', 'updatedAt']))
+        );
+      allow delete: if isValidId(sessionId) && isSignedIn() && existing().ownerId == request.auth.uid;
+
+      match /members/{memberId} {
+        allow get: if isValidId(sessionId) && isValidId(memberId) && isCollabMember(sessionId);
+        allow list: if isCollabMember(sessionId);
+        allow create: if isVerified() && isValidId(sessionId) && isValidId(memberId)
+          && isValidCollabMember(incoming())
+          && incoming().uid == memberId
+          && incoming().joinedAt == request.time
+          && (
+            (isCollabOwner(sessionId) && (incoming().role == 'editor' || (memberId == request.auth.uid && incoming().role == 'owner')))
+            || (memberId == request.auth.uid && incoming().role == 'editor'
+              && get(/databases/$(database)/documents/collabSessions/$(sessionId)).data.shareMode == 'open')
+          );
+        allow update: if isVerified() && isValidId(sessionId) && isValidId(memberId)
+          && isValidCollabMember(incoming())
+          && incoming().uid == existing().uid
+          && incoming().joinedAt == existing().joinedAt
+          && (
+            (isCollabOwner(sessionId) && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'displayName', 'color']))
+            || (memberId == request.auth.uid && isCollabMember(sessionId)
+              && incoming().role == existing().role
+              && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'color']))
+          );
+        allow delete: if isValidId(sessionId) && isValidId(memberId) && isSignedIn()
+          && (isCollabOwner(sessionId) || memberId == request.auth.uid);
+      }
+
+      match /files/{fileId} {
+        allow get: if isValidId(sessionId) && isValidId(fileId) && isCollabMember(sessionId);
+        allow list: if isCollabMember(sessionId);
+        allow create: if isVerified() && isValidId(sessionId) && isValidId(fileId)
+          && isValidCollabFile(incoming(), sessionId)
+          && incoming().version == 1
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && isCollabMember(sessionId);
+        allow update: if isVerified() && isValidId(sessionId) && isValidId(fileId)
+          && isValidCollabFile(incoming(), sessionId)
+          && incoming().sessionId == existing().sessionId
+          && incoming().path == existing().path
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().version == existing().version + 1
+          && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'language', 'version', 'lastEditorId', 'lastEditorName', 'updatedAt'])
+          && isCollabMember(sessionId);
+        allow delete: if isValidId(sessionId) && isValidId(fileId) && isCollabMember(sessionId);
+      }
+
+      match /presence/{userId} {
+        allow get: if isValidId(sessionId) && isValidId(userId) && isCollabMember(sessionId);
+        allow list: if isCollabMember(sessionId);
+        allow create: if isVerified() && isValidId(sessionId) && isValidId(userId)
+          && isOwner(userId)
+          && isValidCollabPresence(incoming())
+          && incoming().updatedAt == request.time
+          && isCollabMember(sessionId);
+        allow update: if isVerified() && isValidId(sessionId) && isValidId(userId)
+          && isOwner(userId)
+          && isValidCollabPresence(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'color', 'activeFilePath', 'cursorLine', 'cursorCol', 'selectionStart', 'selectionEnd', 'isTyping', 'updatedAt'])
+          && isCollabMember(sessionId);
+        allow delete: if isValidId(sessionId) && isValidId(userId) && isSignedIn()
+          && (isOwner(userId) || isCollabOwner(sessionId));
+      }
+    }
+  }
+}

@@ -1,0 +1,178 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Non-PII user preferences and public display metadata",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "preferredTier": { "type": "string", "enum": ["auto", "general", "chats", "coding", "flash", "pro", "max"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "preferredTier", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII subcollection storing authenticated user email",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "WorkspaceItem": {
+      "title": "WorkspaceItem",
+      "description": "Saved MYAI x MYRA studio session with messages and virtual workspace files",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "folderId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "activeFilePath": { "type": "string", "maxLength": 160 },
+        "messages": { "type": "array" },
+        "files": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "title", "folderId", "messages", "files", "createdAt", "updatedAt"]
+    },
+    "MediaCreation": {
+      "title": "MediaCreation",
+      "description": "Metadata record for generated images, Lyria music, Omni video, or transcriptions",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "kind": { "type": "string", "enum": ["image", "music", "video", "transcript"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "summaryText": { "type": "string", "maxLength": 8000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "kind", "title", "prompt", "model", "createdAt"]
+    },
+    "GameScore": {
+      "title": "GameScore",
+      "description": "Personal 3D Arena run record for signed-in players",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "playerName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "score": { "type": "number" },
+        "wave": { "type": "number" },
+        "kills": { "type": "number" },
+        "durationSec": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "playerName", "score", "wave", "kills", "durationSec", "createdAt"]
+    },
+    "CollabSession": {
+      "title": "CollabSession",
+      "description": "Real-time shared collaborative workspace session metadata",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ownerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sourceWorkspaceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "shareMode": { "type": "string", "enum": ["open", "invite"] },
+        "activeFileCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "ownerName", "title", "sourceWorkspaceId", "shareMode", "activeFileCount", "createdAt", "updatedAt"]
+    },
+    "CollabMember": {
+      "title": "CollabMember",
+      "description": "Authorized participant in a real-time collaborative workspace session",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "role": { "type": "string", "enum": ["owner", "editor"] },
+        "color": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "color", "joinedAt"]
+    },
+    "CollabFile": {
+      "title": "CollabFile",
+      "description": "Real-time synchronized file document edited simultaneously by collaborators",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "path": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "language": { "type": "string", "minLength": 1, "maxLength": 24 },
+        "content": { "type": "string", "maxLength": 50000 },
+        "version": { "type": "number" },
+        "lastEditorId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "lastEditorName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sessionId", "path", "language", "content", "version", "lastEditorId", "lastEditorName", "createdAt", "updatedAt"]
+    },
+    "CollabPresence": {
+      "title": "CollabPresence",
+      "description": "Live cursor position and active file presence state for a session participant",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "color": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "activeFilePath": { "type": "string", "maxLength": 160 },
+        "cursorLine": { "type": "number" },
+        "cursorCol": { "type": "number" },
+        "selectionStart": { "type": "number" },
+        "selectionEnd": { "type": "number" },
+        "isTyping": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "color", "activeFilePath", "cursorLine", "cursorCol", "selectionStart", "selectionEnd", "isTyping", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public-safe user profile documents"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII private user info"
+    },
+    "/workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/WorkspaceItem" },
+      "description": "Synced studio sessions and files"
+    },
+    "/creations/{creationId}": {
+      "schema": { "$ref": "#/entities/MediaCreation" },
+      "description": "User multimodal generation history metadata"
+    },
+    "/leaderboard/{scoreId}": {
+      "schema": { "$ref": "#/entities/GameScore" },
+      "description": "User 3D game run history"
+    },
+    "/collabSessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/CollabSession" },
+      "description": "Real-time collaborative workspace sessions"
+    },
+    "/collabSessions/{sessionId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/CollabMember" },
+      "description": "Collaborator membership records without PII"
+    },
+    "/collabSessions/{sessionId}/files/{fileId}": {
+      "schema": { "$ref": "#/entities/CollabFile" },
+      "description": "Shared real-time synchronized workspace files"
+    },
+    "/collabSessions/{sessionId}/presence/{userId}": {
+      "schema": { "$ref": "#/entities/CollabPresence" },
+      "description": "Real-time collaborator cursor and active file presence"
+    }
+  }
+}

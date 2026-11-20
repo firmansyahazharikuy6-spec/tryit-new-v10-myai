@@ -1,0 +1,6 @@
+{
+  "name": "MyAI Studio",
+  "description": "Next-generation agentic AI workspace uniting MyAI multi-engine routing and MYRA autonomous build pipelines with live code, preview, and diagnostics.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
